@@ -104,4 +104,3 @@ dict = LoadBatch("data_batch_1")
 data = dict[b'data'].transpose() #we need data in rows not columns
 labels = dict[b'labels']
 data, scaler = PreProcessing(data)
-print("hello")
