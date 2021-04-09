@@ -20,72 +20,97 @@ class TwoLayerClassifier:
         self.lamda = lamda
 
     def evaluateClassifier(self, data):
-        s = np.dot(self.W, data) + self.b
+        s1 = np.dot(self.W1, data) + self.b1
+        h = np.where(s1 > 0, s1, 0)
+        s = np.dot(self.W2, h) + self.b2
         probabilities = softmax(s)
-        return probabilities
+        return h, probabilities
 
     def update_weights(self, loss, data):
         # lr*data*error
         self.W -= self.lr * np.dot(data, loss)
 
     def computeAccuracy(self, data, labels):
-        probabilities = self.evaluateClassifier(data)
+        h, probabilities = self.evaluateClassifier(data)
         pred_labels = [np.argmax(probabilities[:, i]) for i in range(probabilities.shape[1])]
         #pred_labels = np.array([np.argmax(probabilities[:,i]) for i in range(probabilities.shape[1])])
         labels = np.asarray(labels)
         pred_labels = np.asarray(pred_labels)
         correct = np.where(pred_labels == labels, 1, 0)
-        sum = np.sum(correct)
+        #sum = np.sum(correct)
         accuracy = np.sum(correct) / data.shape[1]
-        return accuracy*100, pred_labels
+        return accuracy*100
 
-    def miniBatchGD(self, data, labels, val_data, val_labels, epochs=20, batch_size=100):
-        mini_batches = []
+    def miniBatchGD(self, data, targets, val_data, val_targets, train_labels, val_labels, loops=3, epochs_per_loop=16, batch_size=100, n_s=500):
+        #mini_batches = []
         target_batches = []
         #cost_batch = []
         cost_train = []
         cost_val = []
-        for epoch in range(epochs):
-            print("epoch ", epoch)
-            '''data_targets = np.concatenate((data, labels), axis=0)
+        accuracy_train = []
+        accuracy_val = []
+        t=1
+        mini_batches = []
+
+        etas = []
+        for i in range(0, data.shape[1], batch_size):
+            mini_batches.append(data[:, i:i + batch_size])
+            target_batches.append(targets[:, i:i + batch_size])
+        for l in range(loops):
+            for epoch in range(epochs_per_loop):
+                print("loop, epoch", l, epoch)
+            #data_targets = np.concatenate((data, targets), axis=0)
+            #train_labels = np.asarray(train_labels).reshape(1,-1)
+            #data_targets_labels = np.concatenate((data_targets, train_labels), axis=0)
             #shuffle on each epoch
-            np.random.shuffle(data_targets.transpose())
-            data = data_targets[:3072,:]
-            labels = data_targets[3072:,:]'''
-            for i in range(0, data.shape[1], batch_size):
-                mini_batches.append(data[:, i:i + batch_size])
-                target_batches.append(labels[:, i:i + batch_size])
-            for batch in range(len(mini_batches)):
-                y_hat = self.evaluateClassifier(mini_batches[batch])
-                grad, grad_b = self.ComputeGradients(mini_batches[batch], target_batches[batch], y_hat)
-                #cost = self.ComputeCost(mini_batches[batch], target_batches[batch])
-                #cost_batch.append(cost)
-                update = self.lr * grad
-                self.W -= self.lr * grad
-                self.b -= self.lr * grad_b
-            #print("accuracy on training data" , self.computeAccuracy(data, labels))
-            #print("training data cost epoch as mean of minibatches", np.mean(cost_batch))
-            training_cost = self.ComputeCost(data, labels, self.W, self.b, self.lamda)
-            cost_train.append(training_cost)
-            val_cost = self.ComputeCost(val_data, val_labels, self.W, self.b, self.lamda)
-            cost_val.append(val_cost)
-            print("cost on training data after epoch ", training_cost)
-            print("cost on validation data ", val_cost)
-        return cost_train, cost_val
+            #np.random.shuffle(data_targets_labels.transpose())
+            #data = data_targets_labels[:3072,:]
+            #targets = data_targets_labels[3072:3082,:]
+            #train_labels = data_targets_labels[-1,:]
+                for batch in range(len(mini_batches)):
+                    #y_hat = self.evaluateClassifier(mini_batches[batch])
+                    grad_w1, grad_w2, grad_b1, grad_b2 = self.ComputeGradients(mini_batches[batch], target_batches[batch])
+                    lr = self.computeLR(t, l=l, n_s=n_s)
+                    etas.append(lr)
+                    self.W2 -= lr * grad_w2
+                    self.b2 -= lr * grad_b2
+                    self.W1 -= lr * grad_w1
+                    self.b1 -= lr * grad_b1
+                    #print(2*n_s)
+                    t += 1
+                    #print("batch done")
+                training_cost = self.ComputeCost(data, targets, self.W1, self.W2, self.b1, self.b2, self.lamda)
+                cost_train.append(training_cost)
+                val_cost = self.ComputeCost(val_data, val_targets, self.W1, self.W2, self.b1, self.b2, self.lamda)
+                cost_val.append(val_cost)
+                train_accuracy = self.computeAccuracy(train_data, train_labels)
+                val_accuracy = self.computeAccuracy(val_data, val_labels)
+                accuracy_train.append(train_accuracy)
+                accuracy_val.append(val_accuracy)
+                print("cost on training data after epoch ", training_cost)
+                print("cost on validation data ", val_cost)
+                print("train accuracy ", train_accuracy)
+                print(" validation accuracy ", val_accuracy)
+        return cost_train, cost_val, accuracy_train, accuracy_val, etas
 
     #def minibatchGDSVM(self, data, labels, val_data, val_labels, epochs = 40, batch_size=100):
 
-    def ComputeGradients(self, X, Y, P):
+    def ComputeGradients(self, X, Y):
+        #print("compute gradients")
         batch_size = X.shape[1]
-        #print("batch size ", batch_size)
-        # p = one.evaluateClassifier(X)
-        G = -(Y - P)
-        dot = np.dot(G, np.transpose(X))
-        d_w1 = 1 / batch_size * dot
-        grad_w = d_w1 + 2 * self.lamda * self.W
-        grad_b = 1 / batch_size * np.sum(G, axis=1)
-        grad_b = grad_b.reshape(-1,1)
-        return grad_w, grad_b
+        h, p = self.evaluateClassifier(X)
+        G = -(Y - p)
+        grad_w2 = 1/batch_size * np.dot(G, np.transpose(h))
+        grad_b2 = 1/batch_size * np.sum(G, axis=1)
+        grad_b2 = grad_b2.reshape(-1,1)
+        G_2nd = np.dot(self.W2.T, G)
+        ind = np.where(h > 0, 1, 0)
+        G_2nd_ind = G_2nd*ind
+        grad_w1 = 1/batch_size * np.dot(G_2nd_ind, X.T)
+        grad_b1 = 1 / batch_size * np.sum(G_2nd_ind, axis=1)
+        grad_b1 = grad_b1.reshape(-1,1)
+        #print("out gradients")
+        return grad_w1, grad_w2, grad_b1, grad_b2
 
     def ComputeGradientsSVM(self, X, Y):
         batch_size = X.shape[1]
@@ -97,21 +122,43 @@ class TwoLayerClassifier:
         grad_b = 1/batch_size * np.sum(G_ind,axis=1).reshape(-1,1)
         return grad_w, grad_b
 
-    def ComputeCost(self, X, Y, W, b, lamda):
+    def ComputeCost(self, X, Y, W1, W2, b1, b2, lam):
         batch_size = X.shape[1]
-        #p = #self.evaluateClassifier(X)
-        p = softmax(np.dot(W, X) + b)
-        # log_in = np.dot(np.transpose(Y), p)
+        s1 = np.dot(W1, X) + b1
+        h = np.where(s1 > 0, s1, 0)
+        s = np.dot(W2, h) + b2
+        p = softmax(s)
         sum = 0
         y = Y.T
         for i in range(Y.shape[1]):
             sum += -np.log(np.dot(y[i, :], p[:, i]))
             # log_sum = np.sum(-np.log(log_in))
-        loss_part1 = sum / batch_size
+        cross_entropy = sum / batch_size
             # loss_part1 = (1/batch_size) * log_sum
-        loss_part2 = lamda * np.sum(W ** 2)
-        cost = loss_part1 + loss_part2
+        reg_1 = np.sum(W1**2)
+        reg_2 = np.sum(W2**2)
+        cost = cross_entropy + lam * (reg_1 + reg_2)
         return cost
+
+    def computeLR(self, t, l, batch_size=100, eta_min=1e-5, eta_max=1e-1, n_s=500):
+        #l = 1 #number of cycles
+        #print("2l +1*n_s: ", (2*l + 1)*n_s)
+        #print("l", l)
+        if (2*l*n_s) <= t <= ((2*l)+1)*n_s:
+            #print("in if", t)
+            num = t - 2*l*n_s
+            eta_t = eta_min + num/n_s *(eta_max-eta_min)
+            return eta_t
+        elif ((2*l)+1)*n_s <= t <= 2*(l+1)*n_s:
+            #print("in elif", t)
+            num = t - (2*l+1)*n_s
+            #print("num", num)
+            eta_t = eta_max - num/n_s * (eta_max-eta_min)
+            #print("eta_t", eta_t)
+            return eta_t
+        else:
+            raise ValueError("bad eta, t, thresholds:", t, (2*l*n_s), ((2*l)+1), ((2*l)+1)*n_s, 2*(l+1)*n_s)
+
 
 
 def softmax(x):
@@ -126,65 +173,103 @@ def LoadBatch(filename):
         dict = pickle.load(fo, encoding='bytes')
     return dict
 
-def ComputeGradsNum(X, Y, P, W, b, lamda, h, classifier):
-    # """ Converted from matlab code """
-    no = W.shape[0]
-    d = X.shape[0]
 
-    grad_W = np.zeros(W.shape);
-    grad_b = np.zeros((no, 1));
+def ComputeGradsNum(X, Y, P, W1, W2, b1, b2, lam, h, classifier):
+    print("compute grads num")
+    grad_W1 = np.zeros(W1.shape)
+    grad_b1 = np.zeros(b1.shape)
+    grad_W2 = np.zeros(W2.shape)
+    grad_b2 = np.zeros(b2.shape)
 
-    c = classifier.ComputeCost(X, Y, W, b, lamda);
+    c = classifier.ComputeCost(X, Y, W1, W2, b1, b2, lam)
 
-    for i in range(len(b)):
-        b_try = np.array(b)
-        b_try[i] += h
-        c2 = classifier.ComputeCost(X, Y, W, b_try, lamda)
-        grad_b[i] = (c2 - c) / h
+    for i in range(len(b1)):
+        b1_try = np.array(b1)
+        b1_try[i] += h
+        c2 = classifier.ComputeCost(X, Y, W1, W2, b1_try, b2, lam)
+        grad_b1[i] = (c2 - c) / h
 
-    for i in range(W.shape[0]):
-        for j in range(W.shape[1]):
-            W_try = np.array(W)
-            W_try[i, j] += h
-            c2 = classifier.ComputeCost(X, Y, W_try, b, lamda)
-            grad_W[i, j] = (c2 - c) / h
+    print("done b1")
 
-    return [grad_W, grad_b]
+    for i in range(W1.shape[0]):
+        for j in range(W1.shape[1]):
+            W1_try = np.array(W1)
+            W1_try[i, j] += h
+            c2 = classifier.ComputeCost(X, Y, W1_try, W2, b1, b2, lam)
+            grad_W1[i, j] = (c2 - c) / h
+
+    print("done w1")
+
+    for i in range(len(b2)):
+        b2_try = np.array(b2)
+        b2_try[i] += h
+        c2 = classifier.ComputeCost(X, Y, W1, W2, b1, b2_try, lam)
+        grad_b2[i] = (c2 - c) / h
+    print("done b2")
+    for i in range(W2.shape[0]):
+        for j in range(W2.shape[1]):
+            W2_try = np.array(W2)
+            W2_try[i, j] += h
+            c2 = classifier.ComputeCost(X, Y, W1, W2_try, b1, b2, lam)
+            grad_W2[i, j] = (c2 - c) / h
+    print("done w2")
+
+    return [grad_W1, grad_W2, grad_b1, grad_b2]
 
 
-def ComputeGradsNumSlow(X, Y, P, W, b, lamda, h, classifier):
-    """ Converted from matlab code """
-    no = W.shape[0]
-    d = X.shape[0]
+def ComputeGradsNumSlow(X, Y, P, W1, W2, b1, b2, lam, h):
+    grad_W1 = np.zeros(W1.shape)
+    grad_b1 = np.zeros(b1.shape)
+    grad_W2 = np.zeros(W2.shape)
+    grad_b2 = np.zeros(b2.shape)
 
-    grad_W = np.zeros(W.shape);
-    grad_b = np.zeros((no, 1));
+    for i in range(len(b1)):
+        b1_try = np.array(b1)
+        b1_try[i] -= h
+        _, c1 = ComputeCost(X, Y, W1, W2, b1_try, b2, lam)
 
-    for i in range(len(b)):
-        b_try = np.array(b)
-        b_try[i] -= h
-        c1 = classifier.ComputeCost(X, Y, W, b_try, lamda)
+        b1_try = np.array(b1)
+        b1_try[i] += h
+        _, c2 = ComputeCost(X, Y, W1, W2, b1_try, b2, lam)
 
-        b_try = np.array(b)
-        b_try[i] += h
-        c2 = classifier.ComputeCost(X, Y, W, b_try, lamda)
+        grad_b1[i] = (c2 - c1) / (2 * h)
 
-        grad_b[i] = (c2 - c1) / (2 * h)
+    for i in range(W1.shape[0]):
+        for j in range(W1.shape[1]):
+            W1_try = np.array(W1)
+            W1_try[i, j] -= h
+            _, c1 = ComputeCost(X, Y, W1_try, W2, b1, b2, lam)
 
-    for i in range(W.shape[0]):
-        for j in range(W.shape[1]):
-            W_try = np.array(W)
-            W_try[i, j] -= h
-            c1 = classifier.ComputeCost(X, Y, W_try, b, lamda)
+            W1_try = np.array(W1)
+            W1_try[i, j] += h
+            _, c2 = ComputeCost(X, Y, W1_try, W2, b1, b2, lam)
 
-            W_try = np.array(W)
-            W_try[i, j] += h
-            c2 = classifier.ComputeCost(X, Y, W_try, b, lamda)
+            grad_W1[i, j] = (c2 - c1) / (2 * h)
 
-            grad_W[i, j] = (c2 - c1) / (2 * h)
+    for i in range(len(b2)):
+        b2_try = np.array(b2)
+        b2_try[i] -= h
+        _, c1 = ComputeCost(X, Y, W1, W2, b1, b2_try, lam)
 
-    return [grad_W, grad_b]
+        b2_try = np.array(b2)
+        b2_try[i] += h
+        _, c2 = ComputeCost(X, Y, W1, W2, b1, b2_try, lam)
 
+        grad_b2[i] = (c2 - c1) / (2 * h)
+
+    for i in range(W2.shape[0]):
+        for j in range(W2.shape[1]):
+            W2_try = np.array(W2)
+            W2_try[i, j] -= h
+            _, c1 = ComputeCost(X, Y, W1, W2_try, b1, b2, lam)
+
+            W2_try = np.array(W2)
+            W2_try[i, j] += h
+            _, c2 = ComputeCost(X, Y, W1, W2_try, b1, b2, lam)
+
+            grad_W2[i, j] = (c2 - c1) / (2 * h)
+
+    return [grad_W1, grad_W2, grad_b1, grad_b2]
 
 def montage(W):
     """ Display the image for each label in W """
@@ -231,14 +316,17 @@ def PreProcessing(data, labels, mean, std):
 
 def check_gradients(data, targets, lamda, classifier):
     P = classifier.evaluateClassifier(data)
-    gradient, b_gradient = classifier.ComputeGradients(data, targets, P)
-    gradient_num, gradient_b_num = ComputeGradsNum(data, targets, P, classifier.W, classifier.b, lamda, 1e-6, classifier)
-    gradient_num_slow, gradient_b_num_slow = ComputeGradsNumSlow(data, targets, P, classifier.W, classifier.b, lamda,
-                                                                 1e-6, classifier)
+    grad_w1, grad_w2, grad_b1, grad_b2 = classifier.ComputeGradients(data, targets)
+    gradient1_num, gradient2_num, gradientb1_num, gradientb2_num = ComputeGradsNum(data, targets, P, classifier.W1, classifier.W2, classifier.b1, classifier.b2, lamda, 1e-6, classifier)
+    #gradient_num_slow, gradient_b_num_slow = ComputeGradsNumSlow(data, targets, P, classifier.W, classifier.b, lamda,
+                                                                 #1e-6, classifier)
     print("compare backprop function to numerical calculation for parameters lambda, data size", lamda, data.shape[1])
-    diff = gradient - gradient_num
-    diff_b = b_gradient - gradient_b_num
-    if np.all(abs(diff) <= 1e-6):
+    diff1 = gradient1 - gradient1_num
+    diff2 = gradient2 - gradient2_num
+    diff_b1 = b1_gradient - gradientb1_num
+    diff_b2 = b2_gradient - gradientb2_num
+    print("hello")
+    '''if np.all(abs(diff) <= 1e-6):
         print("grad equivalent")
     else:
         print("grad incorrect")
@@ -258,7 +346,7 @@ def check_gradients(data, targets, lamda, classifier):
     else:
         print("incorrect")
         print(np.max(abs(diff)))
-    return gradient, b_gradient
+    return gradient, b_gradient'''
 
 
 
@@ -276,19 +364,58 @@ test_data = np.asarray(dict_test[b'data'].transpose(), dtype=float)/255
 test_labels = dict_test[b'labels']
 test_data, test_targets = PreProcessing(test_data, test_labels, mean, std)
 n_dims = data.shape[0]
-#one = OneLayerClassifier(data.shape[0], lr=0.001, lamda=0.1, num_labels=10)
 
+two = TwoLayerClassifier(3072, hidden_dims=50, lr=0.001, lamda=0.1, num_labels=10)
+#h, probs = two.evaluateClassifier(train_data)
+#grad_w2, grad_b2, grad_w1, grad_b1 = two.ComputeGradients(train_data, train_targets)
+
+#cost = two.ComputeCost(train_data, train_targets, two.W1, two.W2, two.b1, two.b2, 0)
+#cost_train, cost_val = two.miniBatchGD(train_data[:,:100], train_targets[:,:100], val_data, val_targets, epochs=200, batch_size=100)
+#plt.plot(cost_train)
+#plt.plot(cost_val)
+#plt.show()
+
+#test learning rate:
+'''etas = []
+n_s = 800
+loops = 3
+t = 1
+for loop in range(loops):
+    for i in range(1,(2*n_s +1)):
+        etas.append(two.computeLR(t, l=loop, n_s=n_s))
+        t += 1
+print(etas)
+plt.plot(etas)
+plt.show()'''
+
+#check_gradients(train_data[:, :50], train_targets[:, :50], 0, two)
+
+cost_train, cost_val, acc_train, acc_val, etas = two.miniBatchGD(train_data, train_targets, val_data, val_targets, train_labels, val_labels, loops=3, epochs_per_loop=16, n_s=800)
+
+plt.subplot(1,3,1)
+plt.plot(cost_train, label="training cost")
+plt.plot(cost_val, label='validation cost')
+plt.legend()
+plt.subplot(1,3,2)
+plt.plot(acc_train, label='training accuracy')
+plt.plot(acc_val, label='validation accuracy')
+plt.legend()
+plt.subplot(1,3,3)
+plt.plot(etas)
+plt.show()
 # probs = one.evaluateClassifier(data[:, :100])
 # cost = ComputeCost(train_data, train_targets, one.W, one.b, lamda)
 # in_data = train_data[:, :100]
 # train_targets =  train_targets[:,:100]
 
-#check_gradients(train_data[:, :100], train_targets[:, :100], 0.1, one)
+
 
 params = [[0, 0.1], [0, 0.001], [0.1, 0.001], [1, 0.001]]
 
 
 #montage(dict[b'data'])
+
+'''
 for i in range(len(params)):
     classifier = OneLayerClassifier(n_dims, lr=params[i][1], lamda=params[i][0], num_labels=10)
     train_cost, val_cost = classifier.miniBatchGD(train_data, train_targets, val_data, val_targets, epochs=40, batch_size=100)
@@ -313,4 +440,4 @@ for i in range(len(params)):
     #plt.show()
     #weight2 = classifier.W
     montage(classifier.W)
-print("out")
+print("out")'''
