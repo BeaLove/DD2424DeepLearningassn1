@@ -6,7 +6,7 @@ class TwoLayerClassifier:
 
     def __init__(self, input_dims, hidden_dims=50, lr=0.001, lamda=0., num_labels=10):
 
-        np.random.seed(0)
+        np.random.seed(245)
         std1 = 1/np.sqrt(input_dims)
         std2 = 1/np.sqrt(hidden_dims)
         #w1 size m x d, w2 size k x m
@@ -50,26 +50,19 @@ class TwoLayerClassifier:
         accuracy_train = []
         accuracy_val = []
         t=1
-        mini_batches = []
-
         etas = []
+        mini_batches = []
         for i in range(0, data.shape[1], batch_size):
             mini_batches.append(data[:, i:i + batch_size])
             target_batches.append(targets[:, i:i + batch_size])
+        idx = np.arange(len(mini_batches))
         for l in range(loops):
             for epoch in range(epochs_per_loop):
                 print("loop, epoch", l, epoch)
-            #data_targets = np.concatenate((data, targets), axis=0)
-            #train_labels = np.asarray(train_labels).reshape(1,-1)
-            #data_targets_labels = np.concatenate((data_targets, train_labels), axis=0)
-            #shuffle on each epoch
-            #np.random.shuffle(data_targets_labels.transpose())
-            #data = data_targets_labels[:3072,:]
-            #targets = data_targets_labels[3072:3082,:]
-            #train_labels = data_targets_labels[-1,:]
-                for batch in range(len(mini_batches)):
+                np.random.shuffle(idx)
+                for i in idx:
                     #y_hat = self.evaluateClassifier(mini_batches[batch])
-                    grad_w1, grad_w2, grad_b1, grad_b2 = self.ComputeGradients(mini_batches[batch], target_batches[batch])
+                    grad_w1, grad_w2, grad_b1, grad_b2 = self.ComputeGradients(mini_batches[i], target_batches[i])
                     lr = self.computeLR(t, l=l, n_s=n_s)
                     etas.append(lr)
                     self.W2 -= lr * grad_w2
@@ -91,6 +84,7 @@ class TwoLayerClassifier:
                 print("cost on validation data ", val_cost)
                 print("train accuracy ", train_accuracy)
                 print(" validation accuracy ", val_accuracy)
+
         return cost_train, cost_val, accuracy_train, accuracy_val, etas
 
     #def minibatchGDSVM(self, data, labels, val_data, val_labels, epochs = 40, batch_size=100):
@@ -100,13 +94,13 @@ class TwoLayerClassifier:
         batch_size = X.shape[1]
         h, p = self.evaluateClassifier(X)
         G = -(Y - p)
-        grad_w2 = 1/batch_size * np.dot(G, np.transpose(h))
+        grad_w2 = 1/batch_size * np.dot(G, np.transpose(h)) + 2*self.lamda*self.W2
         grad_b2 = 1/batch_size * np.sum(G, axis=1)
         grad_b2 = grad_b2.reshape(-1,1)
         G_2nd = np.dot(self.W2.T, G)
         ind = np.where(h > 0, 1, 0)
         G_2nd_ind = G_2nd*ind
-        grad_w1 = 1/batch_size * np.dot(G_2nd_ind, X.T)
+        grad_w1 = 1/batch_size * np.dot(G_2nd_ind, X.T) + 2*self.lamda*self.W1
         grad_b1 = 1 / batch_size * np.sum(G_2nd_ind, axis=1)
         grad_b1 = grad_b1.reshape(-1,1)
         #print("out gradients")
@@ -217,7 +211,8 @@ def ComputeGradsNum(X, Y, P, W1, W2, b1, b2, lam, h, classifier):
     return [grad_W1, grad_W2, grad_b1, grad_b2]
 
 
-def ComputeGradsNumSlow(X, Y, P, W1, W2, b1, b2, lam, h):
+def ComputeGradsNumSlow(X, Y, P, W1, W2, b1, b2, lam, h, classifier):
+    print("start slow")
     grad_W1 = np.zeros(W1.shape)
     grad_b1 = np.zeros(b1.shape)
     grad_W2 = np.zeros(W2.shape)
@@ -226,11 +221,11 @@ def ComputeGradsNumSlow(X, Y, P, W1, W2, b1, b2, lam, h):
     for i in range(len(b1)):
         b1_try = np.array(b1)
         b1_try[i] -= h
-        _, c1 = ComputeCost(X, Y, W1, W2, b1_try, b2, lam)
+        c1 = classifier.ComputeCost(X, Y, W1, W2, b1_try, b2, lam)
 
         b1_try = np.array(b1)
         b1_try[i] += h
-        _, c2 = ComputeCost(X, Y, W1, W2, b1_try, b2, lam)
+        c2 = classifier.ComputeCost(X, Y, W1, W2, b1_try, b2, lam)
 
         grad_b1[i] = (c2 - c1) / (2 * h)
 
@@ -238,22 +233,22 @@ def ComputeGradsNumSlow(X, Y, P, W1, W2, b1, b2, lam, h):
         for j in range(W1.shape[1]):
             W1_try = np.array(W1)
             W1_try[i, j] -= h
-            _, c1 = ComputeCost(X, Y, W1_try, W2, b1, b2, lam)
+            c1 = classifier.ComputeCost(X, Y, W1_try, W2, b1, b2, lam)
 
             W1_try = np.array(W1)
             W1_try[i, j] += h
-            _, c2 = ComputeCost(X, Y, W1_try, W2, b1, b2, lam)
+            c2 = classifier.ComputeCost(X, Y, W1_try, W2, b1, b2, lam)
 
             grad_W1[i, j] = (c2 - c1) / (2 * h)
 
     for i in range(len(b2)):
         b2_try = np.array(b2)
         b2_try[i] -= h
-        _, c1 = ComputeCost(X, Y, W1, W2, b1, b2_try, lam)
+        c1 = classifier.ComputeCost(X, Y, W1, W2, b1, b2_try, lam)
 
         b2_try = np.array(b2)
         b2_try[i] += h
-        _, c2 = ComputeCost(X, Y, W1, W2, b1, b2_try, lam)
+        c2 = classifier.ComputeCost(X, Y, W1, W2, b1, b2_try, lam)
 
         grad_b2[i] = (c2 - c1) / (2 * h)
 
@@ -261,11 +256,11 @@ def ComputeGradsNumSlow(X, Y, P, W1, W2, b1, b2, lam, h):
         for j in range(W2.shape[1]):
             W2_try = np.array(W2)
             W2_try[i, j] -= h
-            _, c1 = ComputeCost(X, Y, W1, W2_try, b1, b2, lam)
+            c1 = classifier.ComputeCost(X, Y, W1, W2_try, b1, b2, lam)
 
             W2_try = np.array(W2)
             W2_try[i, j] += h
-            _, c2 = ComputeCost(X, Y, W1, W2_try, b1, b2, lam)
+            c2 = classifier.ComputeCost(X, Y, W1, W2_try, b1, b2, lam)
 
             grad_W2[i, j] = (c2 - c1) / (2 * h)
 
@@ -318,35 +313,47 @@ def check_gradients(data, targets, lamda, classifier):
     P = classifier.evaluateClassifier(data)
     grad_w1, grad_w2, grad_b1, grad_b2 = classifier.ComputeGradients(data, targets)
     gradient1_num, gradient2_num, gradientb1_num, gradientb2_num = ComputeGradsNum(data, targets, P, classifier.W1, classifier.W2, classifier.b1, classifier.b2, lamda, 1e-6, classifier)
-    #gradient_num_slow, gradient_b_num_slow = ComputeGradsNumSlow(data, targets, P, classifier.W, classifier.b, lamda,
+    #gradient1_num_slow, gradient2_num_slow, gradientb1_num_slow, gradientb2_num_slow = ComputeGradsNumSlow(data, targets, P, classifier.W1, classifier.W2, classifier.b1, classifier.b2, lamda,
                                                                  #1e-6, classifier)
     print("compare backprop function to numerical calculation for parameters lambda, data size", lamda, data.shape[1])
-    diff1 = gradient1 - gradient1_num
-    diff2 = gradient2 - gradient2_num
-    diff_b1 = b1_gradient - gradientb1_num
-    diff_b2 = b2_gradient - gradientb2_num
+    diff1 = grad_w1 - gradient1_num
+    diff2 = grad_w2 - gradient2_num
+    diff_b1 = grad_b1 - gradientb1_num
+    diff_b2 = grad_b2 - gradientb2_num
     print("hello")
-    '''if np.all(abs(diff) <= 1e-6):
+    np.testing.assert_almost_equal(grad_w1, gradient1_num, 7)
+    np.testing.assert_almost_equal(grad_w2, gradient2_num, 7)
+    np.testing.assert_almost_equal(grad_b1, gradientb1_num, 7)
+    np.testing.assert_almost_equal(grad_b2, gradientb2_num, 7)
+    #np.testing.assert_almost_equal(grad_w1, gradient1_num_slow, 7)
+    #np.testing.assert_almost_equal(grad_w2, gradient2_num_slow, 7)
+
+    if np.all(abs(diff1) <= 1e-6):
         print("grad equivalent")
     else:
         print("grad incorrect")
-        print(np.max(abs(diff)))
+        print(np.max(abs(diff1)))
         print("epsilon comparison: ")
-        comp = abs(diff)/max(1e-6, (abs(gradient) + abs(gradient_num)))
-        print(max(comp))
-    if np.all(abs(diff_b) <= 1e-6):
-        print("grad b good")
+        #comp = abs(diff)/max(1e-6, (abs(gradient) + abs(gradient_num)))
+        #print(max(comp))
+    if np.all(abs(diff2) <= 1e-6):
+        print("grad w2 good")
     else:
-        print("grad b bad")
-        print(np.max(abs(diff_b)))
+        print("grad w2 bad")
+        print(np.max(abs(diff2)))
     print("compare backprop function to slow numerical calculation: ")
-    diff = gradient - gradient_num_slow
-    if np.all(abs(diff) <= 1e-6):
-        print("equivalent")
+    #diff = gradient - gradient_num_slow
+    if np.all(abs(diff_b1) <= 1e-6):
+        print("b1 equivalent")
     else:
         print("incorrect")
-        print(np.max(abs(diff)))
-    return gradient, b_gradient'''
+        print(np.max(abs(diff_b1)))
+    if np.all(abs(diff_b2) <= 1e-6):
+        print("b2 good")
+    else:
+        print("b2 bad")
+        print(np.max(diff_b2))
+
 
 
 
@@ -365,7 +372,7 @@ test_labels = dict_test[b'labels']
 test_data, test_targets = PreProcessing(test_data, test_labels, mean, std)
 n_dims = data.shape[0]
 
-two = TwoLayerClassifier(3072, hidden_dims=50, lr=0.001, lamda=0.1, num_labels=10)
+two = TwoLayerClassifier(3072, hidden_dims=50, lr=0.001, lamda=0.01, num_labels=10)
 #h, probs = two.evaluateClassifier(train_data)
 #grad_w2, grad_b2, grad_w1, grad_b1 = two.ComputeGradients(train_data, train_targets)
 
@@ -388,7 +395,8 @@ print(etas)
 plt.plot(etas)
 plt.show()'''
 
-#check_gradients(train_data[:, :50], train_targets[:, :50], 0, two)
+check_gradients(train_data[:, :50], train_targets[:, :50], 0, two)
+
 
 cost_train, cost_val, acc_train, acc_val, etas = two.miniBatchGD(train_data, train_targets, val_data, val_targets, train_labels, val_labels, loops=3, epochs_per_loop=16, n_s=800)
 
@@ -403,10 +411,11 @@ plt.legend()
 plt.subplot(1,3,3)
 plt.plot(etas)
 plt.show()
+
 # probs = one.evaluateClassifier(data[:, :100])
 # cost = ComputeCost(train_data, train_targets, one.W, one.b, lamda)
 # in_data = train_data[:, :100]
-# train_targets =  train_targets[:,:100]
+# train_targets =  train_targets[:,:100]'''
 
 
 
