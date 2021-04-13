@@ -357,6 +357,7 @@ def check_gradients(data, targets, lamda, classifier):
 
 
 
+
 dict = LoadBatch("data_batch_1")
 data = np.asarray(dict[b'data'].transpose(), dtype=float)/255.  # we need data in columns not rows
 train_labels = dict[b'labels']
