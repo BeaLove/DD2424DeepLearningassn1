@@ -494,6 +494,45 @@ def check_gradients(data, targets, lamda, classifier):
         print("b2 bad")
         print(np.max(diff_b2))
 
+def coarse_random_search(l_min, l_max, train_data, train_targets, train_labels, val_data,
+                         val_targets, val_labels, test_data, test_labels):
+    print('start random search')
+    batch_size = 100
+    num_batches = train_data.shape[1] / batch_size
+    n_s = int(2 * num_batches)
+    epochs = int((2 * n_s) / num_batches)
+    loops = 2
+    rand_ = np.random.uniform(0, 1, (8, 1))
+    lamdas = l_min + (l_max - l_min) * rand_
+    lamdas = 10 ** lamdas
+    accuracy = 0
+    best_performance = {'lambda': 0, 'accuracy': 0}
+    for idx, lamda in enumerate(lamdas):
+        classifier = kLayerClassifier(layers=[3072, 50, 50, 10], lamda=lamda, batch_normalize=True)
+        acc_train, acc_val, train_cost, val_cost, etas = classifier.miniBatchGD(train_data, train_targets, val_data,
+                                                                                val_targets, train_labels, val_labels,
+                                                                                loops=loops, epochs_per_loop=epochs,
+                                                                                batch_size=100, n_s=n_s)
+        test_accuracy = classifier.computeAccuracy(test_data, test_labels)
+        with open('performance_finesearch.txt', 'a') as performance:
+            performance.write("lambda: {}, validation accuracy: {}".format(lamda, acc_val[-1]))
+            performance.write('\n')
+            print("lambda: ", lamda, "end accuracy: ", acc_val[-1])
+            if test_accuracy > accuracy:
+                best_performance['accuracy'], best_performance['lambda'] = test_accuracy, lamda
+            performance.write("\n best performance: lambda {}, accuracy {}".format(best_performance['lambda'],
+                                                                                   best_performance['accuracy']))
+        plt.subplot(1, 2, 1)
+        plt.plot(acc_train, label="train accuracy")
+        plt.plot(acc_val, label="validation accuracy")
+        plt.legend()
+        plt.title("lambda: {} end val accuracy {}".format(lamda, acc_val[-1]))
+        plt.subplot(1, 2, 2)
+        plt.plot(etas)
+        plt.savefig("assgn 2 plots/assgn3coarse_search{}".format(idx))
+        plt.clf()
+
+    print('end random search')
 
 data_dicts = []
 data_dicts.append(LoadBatch("data_batch_1"))
@@ -521,13 +560,17 @@ test_labels = dict_test[b'labels']
 test_data, test_targets = PreProcessing(test_data, test_labels, mean, std)
 n_dims = train_data.shape[0]
 
-# coarse_random_search(-5, -3, train_data, train_targets, train_labels, val_data, val_targets, val_labels)
+#coarse_random_search(-3, -2, train_data, train_targets, train_labels, val_data, val_targets, val_labels,
+                    #  test_data, test_labels)
+
 #layers: in, hidden layer, out eg two layers
-lamda = 0.005
+lamda = 0.00744241
 classifier = kLayerClassifier(layers=[3072, 50, 30, 20, 20, 10, 10, 10, 10], lamda=lamda, batch_normalize=False)
 #p = classifier.forward(train_data)
 #w_grads, b_grads = classifier.ComputeGradients(train_data, p, train_targets)
 #classifier.update_weights(eta=0.02)
+
+
 loops = 2
 batch_size = 100
 num_batches = train_data.shape[1] / batch_size
@@ -556,9 +599,8 @@ plt.show()
 
 test_accuracy = classifier.computeAccuracy(test_data, test_labels)
 print(test_accuracy)
-# check_gradients(train_data[:, :50], train_targets[:, :50], 0, two)
+# check_gradients(train_data[:, :50], train_targets[:, :50], 0, two)'''
 
 
-# montage(dict[b'data'])
 
 

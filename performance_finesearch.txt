@@ -1,0 +1,17 @@
+lambda: [0.00744241], validation accuracy: 51.62
+
+ best performance: lambda [0.00744241], accuracy 52.52lambda: [0.0031292], validation accuracy: 52.339999999999996
+
+ best performance: lambda [0.0031292], accuracy 51.800000000000004lambda: [0.00198276], validation accuracy: 51.739999999999995
+
+ best performance: lambda [0.00198276], accuracy 51.61lambda: [0.0075736], validation accuracy: 52.059999999999995
+
+ best performance: lambda [0.0075736], accuracy 52.18000000000001lambda: [0.00316004], validation accuracy: 52.1
+
+ best performance: lambda [0.00316004], accuracy 51.300000000000004lambda: [0.0068951], validation accuracy: 52.6
+
+ best performance: lambda [0.0068951], accuracy 51.76lambda: [0.00412382], validation accuracy: 52.22
+
+ best performance: lambda [0.00412382], accuracy 51.959999999999994lambda: [0.00935005], validation accuracy: 52.459999999999994
+
+ best performance: lambda [0.00935005], accuracy 51.72

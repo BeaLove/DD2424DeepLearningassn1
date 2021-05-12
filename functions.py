@@ -1,14 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
+np.random.seed(245)
 class OneLayerClassifier:
 
     def __init__(self, dims, lr=0.001, lamda=0., num_labels=10):
 
-        np.random.seed(0)
-        self.W = np.random.normal(0, 0.1, (num_labels, dims))
-        self.b = np.random.normal(0, 0.1, (num_labels, 1))
+        #np.random.seed(245)
+        self.W = np.random.normal(0, 0.01, (num_labels, dims))
+        self.b = np.random.normal(0, 0.01, (num_labels, 1))
         self.targets = 0
         self.num_labels = num_labels
         self.lr = lr
@@ -271,14 +271,15 @@ test_data = np.asarray(dict_test[b'data'].transpose(), dtype=float)/255
 test_labels = dict_test[b'labels']
 test_data, test_targets = PreProcessing(test_data, test_labels, mean, std)
 n_dims = data.shape[0]
-#one = OneLayerClassifier(data.shape[0], lr=0.001, lamda=0.1, num_labels=10)
+one = OneLayerClassifier(data.shape[0], lr=0.001, lamda=0, num_labels=10)
 
 # probs = one.evaluateClassifier(data[:, :100])
 # cost = ComputeCost(train_data, train_targets, one.W, one.b, lamda)
 # in_data = train_data[:, :100]
 # train_targets =  train_targets[:,:100]
 
-#check_gradients(train_data[:, :100], train_targets[:, :100], 0.1, one)
+cost = one.ComputeCost(train_data[:,:10], train_targets[:,:10], one.W, one.b, lamda=0)
+#check_gradients(train_data[:, :10], train_targets[:, :10], 0, one)
 
 params = [[0, 0.1], [0, 0.001], [0.1, 0.001], [1, 0.001]]
 
