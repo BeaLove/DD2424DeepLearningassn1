@@ -21,9 +21,11 @@ class kLayerClassifier:
         self.avg_vars = []
         self.t = 1
         self.alpha = 0.9
-        #initialize the hidden layers with Xavier initialization:
+        #initialize the hidden layers with He initialization:
+        '''experiment with sensitivity to initialization'''
+    sigmas = [1e-1, 1e-3, 1e-4]
         for l in range(1, len(layers)):
-            self.weights.append(np.random.normal(0, (np.sqrt(2/layers[l-1])), (layers[l], layers[l-1])))
+            self.weights.append(np.random.normal(0, sigmas[l-1], (layers[l], layers[l-1])))
             self.biases.append(np.zeros((layers[l], 1)))
             self.gammas.append(np.ones((layers[l], 1)))
             self.betas.append(np.zeros((layers[l], 1)))
@@ -565,13 +567,13 @@ n_dims = train_data.shape[0]
 
 #layers: in, hidden layer, out eg two layers
 lamda = 0.00744241
-classifier = kLayerClassifier(layers=[3072, 50, 30, 20, 20, 10, 10, 10, 10], lamda=lamda, batch_normalize=False)
+classifier = kLayerClassifier(layers=[3072, 50, 50, 10], lamda=lamda, batch_normalize=True)
 #p = classifier.forward(train_data)
 #w_grads, b_grads = classifier.ComputeGradients(train_data, p, train_targets)
 #classifier.update_weights(eta=0.02)
 
 
-loops = 2
+loops = 3
 batch_size = 100
 num_batches = train_data.shape[1] / batch_size
 print("num batches", num_batches)
@@ -581,7 +583,7 @@ epochs_per_loop = int(2 * n_s / num_batches)
 print("epochs per loop", epochs_per_loop)
 accuracy_train, accuracy_val, train_cost, val_cost, etas = classifier.miniBatchGD(train_data,
                                                             train_targets,val_data, val_targets, train_labels, val_labels,
-                                                            loops=2, epochs_per_loop=epochs_per_loop, n_s=n_s, batch_size=batch_size)
+                                                            loops=3, epochs_per_loop=epochs_per_loop, n_s=n_s, batch_size=batch_size)
 
 
 plt.subplot(1, 3, 1)
